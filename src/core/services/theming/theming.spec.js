@@ -737,6 +737,17 @@ describe('$mdTheming service', function() {
     expect($mdTheming.defaultTheme()).toBe('default');
   }));
 
+  it('supports registering theme on the fly', inject(function ($mdTheming) {
+    expect($mdTheming.THEMES.hasOwnProperty('test')).toBeFalsy();
+
+    $mdTheming.defineTheme('test', {
+      primary: 'red',
+      warn: 'yellow'
+    });
+
+    expect($mdTheming.THEMES.hasOwnProperty('test')).toBeTruthy();
+  }));
+
   it('supports changing browser color on the fly', function() {
     var name = 'theme-color';
     var primaryPalette = $mdThemingProvider._THEMES.default.colors.primary.name;
@@ -781,6 +792,38 @@ describe('md-theme directive', function() {
     inject(function($log, $compile, $rootScope) {
       spyOn($log, 'warn');
       $compile('<div md-theme="default"></div>')($rootScope);
+      $rootScope.$apply();
+      expect($log.warn.calls.count()).toBe(0);
+    });
+  });
+});
+
+describe('md-deferred-theme directive', function() {
+  beforeEach(module('material.core'));
+
+  it('should observe and set mdTheme controller', inject(function($compile, $rootScope) {
+    $rootScope.themey = 'unregistered';
+    var el = $compile('<div md-deferred-theme="{{themey}}">')($rootScope);
+    $rootScope.$apply();
+    var ctrl = el.data('$mdThemeController');
+    expect(ctrl.$mdTheme).toBe('unregistered');
+    $rootScope.$apply('themey = "blue"');
+    expect(ctrl.$mdTheme).toBe('blue');
+  }));
+
+  it('does not warns when an unregistered theme is used', function() {
+    inject(function($log, $compile, $rootScope) {
+      spyOn($log, 'warn');
+      $compile('<div md-deferred-theme="unregistered"></div>')($rootScope);
+      $rootScope.$apply();
+      expect($log.warn).not.toHaveBeenCalled();
+    });
+  });
+
+  it('does not warn when a registered theme is used', function() {
+    inject(function($log, $compile, $rootScope) {
+      spyOn($log, 'warn');
+      $compile('<div md-deferred-theme="default"></div>')($rootScope);
       $rootScope.$apply();
       expect($log.warn.calls.count()).toBe(0);
     });

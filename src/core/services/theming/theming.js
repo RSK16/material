@@ -8,6 +8,7 @@
  */
 angular.module('material.core.theming', ['material.core.theming.palette', 'material.core.meta'])
   .directive('mdTheme', ThemingDirective)
+  .directive('mdDeferredTheme', ThemingDirective)
   .directive('mdThemable', ThemableDirective)
   .directive('mdThemesDisabled', disableThemesDirective )
   .provider('$mdTheming', ThemingProvider)
@@ -546,12 +547,42 @@ function ThemingProvider($mdColorPalette, $$mdMetaProvider) {
           applyTheme.inherit(el, el);
         };
 
-    applyTheme.THEMES = angular.extend({}, THEMES);
-    applyTheme.PALETTES = angular.extend({}, PALETTES);
+    Object.defineProperty(applyTheme, 'THEMES', {
+      get: function () {
+        return angular.extend({}, THEMES);
+      }
+    });
+    Object.defineProperty(applyTheme, 'PALETTES', {
+      get: function () {
+        return angular.extend({}, PALETTES);
+      }
+    });
     applyTheme.inherit = inheritTheme;
     applyTheme.registered = registered;
     applyTheme.defaultTheme = function() { return defaultTheme; };
     applyTheme.generateTheme = function(name) { generateTheme(THEMES[name], name, themeConfig.nonce); };
+    applyTheme.defineTheme = function (name, options) {
+      options = options || {};
+
+      var theme = registerTheme(name);
+
+      if (options.primary) {
+        theme.primaryPalette(options.primary);
+      }
+      if (options.accent) {
+        theme.accentPalette(options.accent);
+      }
+      if (options.warn) {
+        theme.warnPalette(options.warn);
+      }
+      if (options.background) {
+        theme.backgroundPalette(options.background);
+      }
+
+      this.generateTheme(name);
+
+      return theme;
+    };
     applyTheme.setBrowserColor = enableBrowserColor;
 
     return applyTheme;
@@ -593,7 +624,7 @@ function ThemingProvider($mdColorPalette, $$mdMetaProvider) {
        */
       function updateThemeClass(theme) {
         if (!theme) return;
-        if (!registered(theme)) {
+        if (ctrl && !ctrl.$isDeferredTheme && !registered(theme)) {
           $log.warn('Attempted to use unregistered theme \'' + theme + '\'. ' +
                     'Register it with $mdThemingProvider.theme().');
         }
@@ -628,6 +659,7 @@ function ThemingDirective($mdTheming, $interpolate, $log) {
     priority: 100,
     link: {
       pre: function(scope, el, attrs) {
+        var isDeferred = attrs.hasOwnProperty('mdDeferredTheme');
         var registeredCallbacks = [];
         var ctrl = {
           registerChanges: function (cb, context) {
@@ -646,10 +678,11 @@ function ThemingDirective($mdTheming, $interpolate, $log) {
             };
           },
           $setTheme: function (theme) {
-            if (!$mdTheming.registered(theme)) {
+            if (!isDeferred && !$mdTheming.registered(theme)) {
               $log.warn('attempted to use unregistered theme \'' + theme + '\'');
             }
             ctrl.$mdTheme = theme;
+            ctrl.$isDeferredTheme = isDeferred;
 
             registeredCallbacks.forEach(function (cb) {
               cb();
@@ -657,8 +690,9 @@ function ThemingDirective($mdTheming, $interpolate, $log) {
           }
         };
         el.data('$mdThemeController', ctrl);
-        ctrl.$setTheme($interpolate(attrs.mdTheme)(scope));
-        attrs.$observe('mdTheme', ctrl.$setTheme);
+        var directiveType = isDeferred ? 'mdDeferredTheme' : 'mdTheme';
+        ctrl.$setTheme($interpolate(attrs[directiveType])(scope));
+        attrs.$observe(directiveType, ctrl.$setTheme);
       }
     }
   };
